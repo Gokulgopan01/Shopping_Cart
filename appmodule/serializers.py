@@ -18,27 +18,40 @@ class CartSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class AddToCartSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField()
     product_id = serializers.IntegerField()
     quantity = serializers.IntegerField(default=1, min_value=1)
 
-    def Validate_product_id(self, value):
-        try:
-            product = Product.objects.get(id=value)
-        except Product.DoesNotExist:
+    class Meta:
+        model = Cart
+        fields = ['user_id', 'product_id', 'quantity']  # Required Meta
+
+    def validate_product_id(self, value):
+        if not Product.objects.filter(id=value).exists():
             raise serializers.ValidationError("Product with given ID does not exist.")
         return value
-    
+
+    def validate_user_id(self, value):
+        if not Users.objects.filter(id=value).exists():
+            raise serializers.ValidationError("User with given ID does not exist.")
+        return value
+
     def create(self, validated_data):
-        user = self.context['request'].user
+        user_id = validated_data['user_id']
         product_id = validated_data['product_id']
         quantity = validated_data.get('quantity', 1)
 
-        cart_item, created = Cart.objects.get_or_create(user=user, product_id=product_id, defaults={'quantity': quantity})
-        if not created: 
+        cart_item, created = Cart.objects.get_or_create(
+            user_id=user_id,
+            product_id=product_id,
+            defaults={'quantity': quantity}
+        )
+        if not created:
             cart_item.quantity += quantity
             cart_item.save()
         return cart_item
-
+    
+    
 class CartStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Cart

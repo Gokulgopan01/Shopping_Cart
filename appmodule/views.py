@@ -1,6 +1,5 @@
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
-
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,8 +7,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 
-from .serializers import ProductSerializer, LoginSerializer, RegisterSerializer, CartSerializer, AddToCartSerializer, CartStatusSerializer
-from .models import Product, Cart
+from .serializers import ProductSerializer, LoginSerializer, RegisterSerializer, CartSerializer, AddToCartSerializer, CartStatusSerializer, UsersSerializer
+from .models import Product, Cart, Users
 
 #Product Views
 
@@ -31,9 +30,14 @@ class ProductDelete(generics.DestroyAPIView):
     serializer_class = ProductSerializer
     lookup_field = 'id'
 
+class UserProfileView(APIView):
+    def get(self, request, id):
+        user = get_object_or_404(Users, id=id)
+        serializer = UsersSerializer(user)
+        return Response(serializer.data)
+
 
 #Authentication Views
-
 class RegisterView(APIView):
     '''View to handle Registration'''
 
@@ -63,43 +67,25 @@ class LoginView(APIView):
         
 
 #Cart crete and get
- 
-class CartView(APIView):
-    ''' View to handle cart operation'''
+class AddToCartView(APIView):
 
-    permission_classes =[IsAuthenticated]
-
-    #Get Cart items
-    def get(self, request):
-        cart = Cart.objects.filter(user=request.user).select_related('product')
-        serializer = CartSerializer(cart, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    #Add to Cart
     def post(self, request):
-        serializer = AddToCartSerializer(data= request.data)
+        serializer = AddToCartSerializer(data=request.data)
         if serializer.is_valid():
             cart_item = serializer.save()
             return Response(CartSerializer(cart_item).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+class UserCartView(APIView):
 
-    #Update cart view (quantity , size. colour)
-    def put(self, request, pk):
-        cart_items = Cart.get_object_or_404(Cart, pk=pk, user=request.user)
-        serializer = CartSerializer(cart_items, data=request.data,partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-
-    #dlete cart item
-    def delete(self, request, pk):
-        """Delete a specific product from cart"""
-        cart_item = get_object_or_404(Cart, pk=pk, user=request.user)
-        cart_item.delete()
-        return Response({"message": "Item removed from cart"}, status=status.HTTP_204_NO_CONTENT)
+    def get(self, request):
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({"error": "user_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        cart_items = Cart.objects.filter(user_id=user_id).select_related('product')
+        serializer = CartSerializer(cart_items, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
     
 
 #Update Cart status
